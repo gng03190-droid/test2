@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>자극에 대한 반응 실험 보고서</title>
+    <!-- Tailwind CSS (스타일링) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js (그래프 생성) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2canvas (이미지 저장) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- 웹 폰트 적용 (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #eef2ff; /* 자극/신경망 느낌의 연한 푸른빛 배경 */
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.08) 0%, rgba(99, 102, 241, 0.08) 2px, transparent 2px),
+                radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.08) 0%, rgba(99, 102, 241, 0.08) 2px, transparent 2px);
+            background-size: 40px 40px;
+        }
+        
+        /* 보고서 A4 용지 스타일 */
+        .report-page {
+            background-color: white;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+        }
+        
+        /* 인쇄 및 이미지 저장 시 그림자 제거를 위한 클래스 */
+        .exporting {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            padding: 40px !important;
+        }
+
+        /* 입력 폼 공통 스타일 */
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+            resize: none;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        
+        /* 질문 텍스트 스타일 */
+        .question-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .question-title[data-q]::before {
+            content: 'Q' attr(data-q);
+            background-color: #6366f1;
+            color: white;
+            font-size: 0.8rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+
+        /* 학습목표 들여쓰기 정렬 설정 */
+        .indent-list {
+            list-style: none; /* 기본 불릿 제거 */
+            padding-left: 0;
+        }
+        .indent-list li {
+            position: relative;
+            padding-left: 1.2rem; /* 불릿 기호 공간 확보 */
+            margin-bottom: 0.5rem;
+        }
+        .indent-list li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: #4b5563; /* 진한 회색 */
+        }
+
+        /* 토스트 메시지 스타일 */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none; /* 클릭 방해 방지 */
+        }
+        .toast {
+            background-color: rgba(31, 41, 55, 0.9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="py-10 px-4 relative">
+
+    <!-- 토스트 메시지 컨테이너 -->
+    <div id="toast-container"></div>
+
+    <!-- 상단 안내 및 버튼 영역 (이미지 저장 시 숨김 처리됨) -->
+    <div class="max-w-3xl mx-auto mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 no-print" id="control-panel">
+        <p class="text-gray-600 font-medium whitespace-nowrap">✏️ 실험 결과를 입력하고 패들렛에 제출할 보고서를 완성하세요.</p>
+        
+        <!-- 버튼 그룹 -->
+        <div class="flex gap-2">
+            <!-- 임시저장 버튼 -->
+            <button onclick="saveToLocalStorage(true)" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors flex items-center gap-2 text-sm sm:text-base">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                임시저장
+            </button>
+            
+            <!-- 이미지 저장 버튼 -->
+            <button id="saveBtn" onclick="saveAsImage()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors flex items-center gap-2 text-sm sm:text-base">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                이미지로 저장하기
+            </button>
+        </div>
+    </div>
+
+    <!-- 캡처될 보고서 영역 -->
+    <div id="report-content" class="report-page text-gray-800">
+        <!-- 날짜 선택 영역 (우측 상단) -->
+        <div class="text-right mb-2">
+            <input type="date" id="reportDate" class="text-gray-500 font-medium bg-transparent border-none outline-none cursor-pointer hover:bg-gray-100 p-1 rounded text-sm transition-colors">
+        </div>
+
+        <!-- 헤더: 제목 및 학번 이름 -->
+        <div class="text-center mb-10">
+            <div class="flex justify-center items-center gap-3 mb-6">
+                <span class="text-4xl">⚡</span>
+                <h1 class="text-3xl font-bold text-gray-900">자극에 대한 반응 실험 보고서</h1>
+                <span class="text-4xl">🧠</span>
+            </div>
+            
+            <!-- 수정됨: 학년 반 번호 이름을 한 줄로 강제 고정 -->
+            <div class="flex justify-center items-center gap-2 text-lg whitespace-nowrap overflow-x-auto pb-2">
+                <div class="flex items-center gap-1">
+                    <span class="font-bold">학년</span> <input type="text" id="grade" class="w-12 text-center">
+                </div>
+                <div class="flex items-center gap-1">
+                    <span class="font-bold">반</span> <input type="text" id="class" class="w-12 text-center">
+                </div>
+                <div class="flex items-center gap-1">
+                    <span class="font-bold">번</span> <input type="text" id="number" class="w-12 text-center">
+                </div>
+                <div class="flex items-center gap-1 ml-2">
+                    <span class="font-bold">이름</span> <input type="text" id="studentName" class="w-24 text-center">
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. 학습 목표 -->
+        <div class="mb-8 bg-blue-50 p-5 rounded-lg border border-blue-100">
+            <h2 class="text-xl font-bold text-blue-800 mb-3 flex items-center gap-2">
+                🎯 학습 목표
+            </h2>
+            <!-- 수정됨: 들여쓰기 정렬을 위한 클래스 적용 -->
+            <ul class="indent-list text-gray-700">
+                <li>청각 센서와 빛 센서를 연결하여 시각 자극과 청각 자극에 대한 반응 속도를 측정한다.</li>
+                <li>측정 결과를 통해 청각에 의한 반응과 시각에 의한 반응 차이를 비교, 분석하여 자극에 대한 반응 경로의 차이를 설명한다.</li>
+            </ul>
+        </div>
+
+        <!-- 1.5. 실험 전 예상하기 -->
+        <div class="mb-10">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b-2 border-gray-300 pb-2 flex items-center gap-2">
+                🤔 실험 전 예상하기
+            </h2>
+            <div class="bg-amber-50 p-5 rounded-lg border border-amber-200">
+                <label class="question-title" style="color: #92400e; margin-bottom: 12px;">시각 반응과 청각 반응 중 어느 것이 더 빠르게 반응할까? 그 이유를 포함하여 작성하시오.</label>
+                <textarea id="prediction" rows="3" placeholder="예: [          ] 반응이 더 빠를 것이다. 왜냐하면 ~하기 때문이다."></textarea>
+            </div>
+        </div>
+
+        <!-- 2. 데이터 분석 (측정값 입력 및 그래프) -->
+        <div class="mb-10">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b-2 border-gray-300 pb-2">📊 데이터 분석</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- 입력 폼 -->
+                <div class="flex flex-col justify-center">
+                    <p class="text-sm text-gray-500 mb-4">※ 실험에서 측정한 평균 반응 시간(초)을 아래에 입력하세요.</p>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+                        <div class="flex justify-between items-center">
+                            <label class="font-semibold text-gray-700 w-1/2">청각 반응 (소리)</label>
+                            <div class="flex items-center gap-2 w-1/2">
+                                <input type="number" id="audioTime" step="0.001" placeholder="예: 0.143" oninput="updateData()" class="text-right font-mono text-blue-600 font-bold">
+                                <span>초</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center">
+                            <label class="font-semibold text-gray-700 w-1/2">시각 반응 (빛)</label>
+                            <div class="flex items-center gap-2 w-1/2">
+                                <input type="number" id="visualTime" step="0.001" placeholder="예: 0.335" oninput="updateData()" class="text-right font-mono text-red-600 font-bold">
+                                <span>초</span>
+                            </div>
+                        </div>
+
+                        <div class="pt-4 mt-2 border-t border-gray-300 flex justify-between items-center">
+                            <label class="font-bold text-gray-900 w-1/2">두 반응의 차이</label>
+                            <div class="flex items-center gap-2 w-1/2 justify-end">
+                                <span id="difference" class="text-lg font-bold font-mono text-gray-800">-</span>
+                                <span>초</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 차트 캔버스 -->
+                <div class="bg-white border border-gray-200 rounded-lg p-2 flex items-center justify-center">
+                    <canvas id="reactionChart" width="400" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 결과 분석 및 고찰 -->
+        <div class="mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b-2 border-gray-300 pb-2">📝 결과 분석 및 고찰</h2>
+            
+            <div class="space-y-6">
+                <!-- Q1 -->
+                <div>
+                    <label class="question-title" data-q="1">시각 반응과 청각 반응 중 더 빠르게 일어나는 것은 무엇인가?</label>
+                    <textarea id="q1" rows="2" placeholder="측정 결과를 바탕으로 어떤 반응이 더 빨랐는지 작성하세요."></textarea>
+                </div>
+
+                <!-- Q2 -->
+                <div>
+                    <label class="question-title" data-q="2">시각 반응과 청각 반응 경로의 차이를 설명해 보자.</label>
+                    <div class="space-y-3 mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="flex flex-col sm:flex-row sm:items-start gap-3">
+                            <span class="font-bold text-red-600 whitespace-nowrap mt-2 flex items-center gap-1 w-36">👁️ 시각 반응 경로</span>
+                            <textarea id="q2_visual" rows="2" placeholder="자극(빛) →"></textarea>
+                        </div>
+                        <div class="flex flex-col sm:flex-row sm:items-start gap-3">
+                            <span class="font-bold text-blue-600 whitespace-nowrap mt-2 flex items-center gap-1 w-36">👂 청각 반응 경로</span>
+                            <textarea id="q2_audio" rows="2" placeholder="자극(소리) →"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Q3 -->
+                <div>
+                    <label class="question-title" data-q="3">이 실험의 한계점 혹은 개선 방안은 무엇인가?</label>
+                    <textarea id="q3" rows="3" placeholder="실험을 진행하며 아쉬웠던 점이나 오차의 원인, 혹은 더 정확한 측정을 위한 방안을 자유롭게 작성하세요."></textarea>
+                </div>
+                
+                <!-- 소감 -->
+                <div>
+                    <label class="question-title" style="color: #4b5563;">
+                        <span style="background-color: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-weight: bold; font-size: 0.8rem; margin-right: 8px;">소감</span>
+                        소감 및 느낀 점
+                    </label>
+                    <textarea id="q4" rows="3" placeholder="이번 수행평가 및 실험을 통해 새롭게 알게 된 점이나 느낀 점을 작성하세요."></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 하단 장식 -->
+        <div class="mt-12 text-center text-gray-400 text-sm">
+            <p>본 보고서는 중3 '자극과 반응 실험' 수행평가로 제출됩니다.</p>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 차트 초기화 및 업데이트 관련 코드 ---
+        const ctx = document.getElementById('reactionChart').getContext('2d');
+        let reactionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['청각 반응 (소리)', '시각 반응 (빛)'],
+                datasets: [{
+                    label: '평균 반응 시간 (초)',
+                    data: [0, 0],
+                    backgroundColor: [
+                        'rgba(59, 130, 246, 0.7)', 
+                        'rgba(239, 68, 68, 0.7)'   
+                    ],
+                    borderColor: [
+                        'rgb(37, 99, 235)',
+                        'rgb(220, 38, 38)'
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: '반응 시간 (초)' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) { return context.parsed.y + ' 초'; }
+                        }
+                    }
+                }
+            }
+        });
+
+        function updateData() {
+            const audioVal = document.getElementById('audioTime').value;
+            const visualVal = document.getElementById('visualTime').value;
+            
+            const audioTime = audioVal ? parseFloat(audioVal) : 0;
+            const visualTime = visualVal ? parseFloat(visualVal) : 0;
+
+            reactionChart.data.datasets[0].data = [audioTime, visualTime];
+            reactionChart.update();
+
+            const diffSpan = document.getElementById('difference');
+            if (audioVal && visualVal) {
+                const diff = Math.abs(visualTime - audioTime).toFixed(3);
+                diffSpan.innerText = diff;
+                diffSpan.classList.add('text-indigo-600');
+            } else {
+                diffSpan.innerText = '-';
+                diffSpan.classList.remove('text-indigo-600');
+            }
+        }
+
+        // --- 2. 임시저장 (Local Storage) 관련 코드 ---
+        
+        // 저장할 입력창들의 ID 목록
+        const inputIds = [
+            'grade', 'class', 'number', 'studentName', 'reportDate', 
+            'prediction', 'audioTime', 'visualTime', 
+            'q1', 'q2_visual', 'q2_audio', 'q3', 'q4'
+        ];
+
+        // 토스트 알림 띄우기 함수
+        function showToast(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerText = message;
+            
+            container.appendChild(toast);
+            
+            // 페이드 인
+            setTimeout(() => { toast.style.opacity = '1'; }, 10);
+            
+            // 3초 후 페이드 아웃 및 제거
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => { container.removeChild(toast); }, 300);
+            }, 3000);
+        }
+
+        // 로컬 스토리지에 데이터 저장
+        function saveToLocalStorage(isManual = false) {
+            const dataToSave = {};
+            inputIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) dataToSave[id] = el.value;
+            });
+            
+            localStorage.setItem('scienceReportData', JSON.stringify(dataToSave));
+            
+            if (isManual) {
+                showToast('✅ 임시저장 되었습니다. (창을 닫아도 유지됩니다)');
+            }
+        }
+
+        // 로컬 스토리지에서 데이터 불러오기
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('scienceReportData');
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    inputIds.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el && data[id]) {
+                            el.value = data[id];
+                        }
+                    });
+                    updateData(); // 불러온 데이터로 차트 업데이트
+                    showToast('🔄 이전 작성 내용을 불러왔습니다.');
+                } catch (e) {
+                    console.error("데이터 불러오기 실패", e);
+                }
+            }
+        }
+
+        // 30초마다 자동 임시저장 실행
+        setInterval(() => {
+            saveToLocalStorage();
+        }, 30000); 
+
+        // --- 3. 이미지 저장 관련 코드 ---
+        function saveAsImage() {
+            const grade = document.getElementById('grade').value || "O";
+            const classNum = document.getElementById('class').value || "O";
+            const studentNum = document.getElementById('number').value || "OO";
+            const name = document.getElementById('studentName').value || "이름없음";
+            const fileName = `${grade}학년${classNum}반${studentNum}번_${name}_보고서.png`;
+
+            const reportElement = document.getElementById('report-content');
+            const controlPanel = document.getElementById('control-panel');
+            
+            controlPanel.style.display = 'none'; 
+            reportElement.classList.add('exporting'); 
+
+            const textareas = document.querySelectorAll('textarea');
+            const originalHeights = [];
+            textareas.forEach((ta, index) => {
+                originalHeights[index] = ta.style.height;
+                ta.style.height = 'auto';
+                ta.style.height = (ta.scrollHeight) + 'px';
+            });
+
+            // html2canvas 실행 전 약간의 지연(렌더링 보장)
+            setTimeout(() => {
+                html2canvas(reportElement, {
+                    scale: 2, 
+                    backgroundColor: '#ffffff' 
+                }).then(canvas => {
+                    controlPanel.style.display = 'flex';
+                    reportElement.classList.remove('exporting');
+                    
+                    textareas.forEach((ta, index) => {
+                        ta.style.height = originalHeights[index];
+                    });
+
+                    const imgUrl = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.href = imgUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    showToast('🎉 보고서가 이미지로 저장되었습니다!');
+                }).catch(err => {
+                    console.error("이미지 저장 중 오류 발생:", err);
+                    alert("이미지를 저장하는 중 오류가 발생했습니다.");
+                    controlPanel.style.display = 'flex';
+                    reportElement.classList.remove('exporting');
+                });
+            }, 100);
+        }
+
+        // --- 페이지 로드 시 실행되는 초기화 작업 ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. 날짜 설정 (저장된 데이터가 없을 경우에만 오늘 날짜 삽입)
+            const dateInput = document.getElementById('reportDate');
+            if (dateInput && !localStorage.getItem('scienceReportData')) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                dateInput.value = `${yyyy}-${mm}-${dd}`;
+            }
+
+            // 2. 이전에 작성하던 데이터가 있으면 불러오기
+            loadFromLocalStorage();
+            
+            // 3. 입력칸 내용이 변경될 때마다 자동 임시저장 리스너 등록
+            inputIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', () => saveToLocalStorage(false));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
