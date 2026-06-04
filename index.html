@@ -209,13 +209,13 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- 입력 폼 -->
                 <div class="flex flex-col justify-center">
-                    <p class="text-sm text-gray-500 mb-4">※ 실험에서 측정한 평균 반응 시간(초)을 아래에 입력하세요.</p>
+                    <p class="text-sm text-gray-500 mb-4">※ 실험에서 측정한 평균 반응 시간(초)을 아래에 입력하세요. <span class="font-medium text-indigo-600">(소수점 셋째자리에서 반올림할 것)</span></p>
                     
                     <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
                         <div class="flex justify-between items-center">
                             <label class="font-semibold text-gray-700 w-1/2">청각 반응 (소리)</label>
                             <div class="flex items-center gap-2 w-1/2">
-                                <input type="number" id="audioTime" step="0.001" placeholder="예: 0.143" oninput="updateData()" class="text-right font-mono text-blue-600 font-bold">
+                                <input type="number" id="audioTime" step="0.01" placeholder="예: 0.14" oninput="updateData()" class="text-right font-mono text-blue-600 font-bold">
                                 <span>초</span>
                             </div>
                         </div>
@@ -223,7 +223,7 @@
                         <div class="flex justify-between items-center">
                             <label class="font-semibold text-gray-700 w-1/2">시각 반응 (빛)</label>
                             <div class="flex items-center gap-2 w-1/2">
-                                <input type="number" id="visualTime" step="0.001" placeholder="예: 0.335" oninput="updateData()" class="text-right font-mono text-red-600 font-bold">
+                                <input type="number" id="visualTime" step="0.01" placeholder="예: 0.34" oninput="updateData()" class="text-right font-mono text-red-600 font-bold">
                                 <span>초</span>
                             </div>
                         </div>
@@ -348,7 +348,7 @@
 
             const diffSpan = document.getElementById('difference');
             if (audioVal && visualVal) {
-                const diff = Math.abs(visualTime - audioTime).toFixed(3);
+                const diff = Math.abs(visualTime - audioTime).toFixed(2);
                 diffSpan.innerText = diff;
                 diffSpan.classList.add('text-indigo-600');
             } else {
@@ -439,12 +439,34 @@
             controlPanel.style.display = 'none'; 
             reportElement.classList.add('exporting'); 
 
+            // 텍스트 에리어를 div로 임시 변환하여 전체 내용이 보이도록 함
             const textareas = document.querySelectorAll('textarea');
-            const originalHeights = [];
-            textareas.forEach((ta, index) => {
-                originalHeights[index] = ta.style.height;
-                ta.style.height = 'auto';
-                ta.style.height = (ta.scrollHeight) + 'px';
+            const tempDivs = [];
+
+            textareas.forEach((ta) => {
+                const div = document.createElement('div');
+                
+                // 기존 textarea의 스타일을 복사
+                const computedStyle = window.getComputedStyle(ta);
+                Array.from(computedStyle).forEach(key => {
+                    div.style[key] = computedStyle[key];
+                });
+                
+                // 캡처를 위한 스타일 재설정
+                div.style.height = 'auto'; // 높이를 내용에 맞게 자동으로 늘림
+                div.style.resize = 'none';
+                div.style.overflow = 'visible'; // 내용이 넘쳐도 다 보이게
+                div.style.whiteSpace = 'pre-wrap'; // 줄바꿈 유지
+                div.style.display = 'block'; // 블록 요소로 변경
+                div.style.width = '100%'; // 너비 꽉 채우기
+
+                // 내용 복사
+                div.innerText = ta.value;
+
+                // DOM에 추가하고 기존 textarea 숨김
+                ta.parentNode.insertBefore(div, ta);
+                ta.style.display = 'none';
+                tempDivs.push({ div, ta });
             });
 
             // html2canvas 실행 전 약간의 지연(렌더링 보장)
@@ -453,11 +475,14 @@
                     scale: 2, 
                     backgroundColor: '#ffffff' 
                 }).then(canvas => {
+                    // 원상 복구
                     controlPanel.style.display = 'flex';
                     reportElement.classList.remove('exporting');
                     
-                    textareas.forEach((ta, index) => {
-                        ta.style.height = originalHeights[index];
+                    // 임시 div 제거 및 textarea 복구
+                    tempDivs.forEach(({ div, ta }) => {
+                        div.parentNode.removeChild(div);
+                        ta.style.display = '';
                     });
 
                     const imgUrl = canvas.toDataURL('image/png');
@@ -472,8 +497,14 @@
                 }).catch(err => {
                     console.error("이미지 저장 중 오류 발생:", err);
                     alert("이미지를 저장하는 중 오류가 발생했습니다.");
+                    
+                    // 오류 발생 시에도 원상 복구
                     controlPanel.style.display = 'flex';
                     reportElement.classList.remove('exporting');
+                    tempDivs.forEach(({ div, ta }) => {
+                        div.parentNode.removeChild(div);
+                        ta.style.display = '';
+                    });
                 });
             }, 100);
         }
